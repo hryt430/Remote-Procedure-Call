@@ -1,34 +1,89 @@
 const net = require("net");
+const readline = require("readline")
 
-const client = net.createConnection("./unix.sock"); 
-client.on("connect", () => {
-    console.log("connected to the server")
-});
-client.on("data", () => {
-    console.log(data)
-});
-client.on("end", () => {
-    console.log("Disconnected")
-    client.destroy()
-})
-client.on("close", () => {
-    console.log("Closing")
-})
-client.on("error", (err) => {
-    console.error(err.message);
-})
+const server_address = "./unix.sock";
+let id = 0
 
-let id = 0;
+function readInput(question) {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+    
+    return new Promise(resolve => {
+        rl.question(question, answer => {
+            rl.close();
+            resolve(answer);
+        });
+    });
+};
 
-console.log("")
-method = prompt("Input the method you want to do :")
-params = prompt("Input the params")
-client.write(
-    {
-        "method": method,
-        "params": params,
-        "params_type": params.forEach(ele => typeof ele),
-        "id": id,
+async function connectToServer(address) {
+    
+    console.log("Connecting to the server");
+
+    return new Promise((resolve, reject) => {
+        const client = net.createConnection(address, () => {
+            console.log("Connected to server");
+            resolve(client); 
+        });
+
+        client.on("error", (err) => {
+            console.error("Connection error:", err);
+            reject(err);
+        });
+    });
+};
+
+async function sendToServer(server) {
+    try{
+        console.log("Sending requests to the server");
+        const method = await readInput("Input the method you want to do :");
+        const params_input = await readInput("Input the params :");
+        const params = params_input.split(" ");
+
+        const request = {
+            "method": method,
+            "params": params,
+            "params_type": params.map(ele => typeof ele),
+            "id": id++,
+        }
+
+        server.write(JSON.stringify(request));
+
+        const timeout = setTimeout(() => {
+            console.log("ending listenig for server responses");
+            server.end();
+        }, 2000)
+
+        server.on("data", (data) => {
+            if (data) {
+                const response = JSON.parse(data)
+                console.log("Server response :\n " + response);
+                clearTimeout(timeout);
+                server.end();
+            } 
+        })
+
+        server.on("error", (err) => {
+            console.error("Server error:", err);
+            clearTimeout(timeout);
+            server.end();
+        });
+
+        server.on("end", () => {
+            console.log("Closing connection")
+            clearTimeout(timeout)
+        })
+        
+    }catch(err){
+        console.error("Error while sending to server:", err);
     }
-);
+};
+
+connectToServer(server_address)
+    .then(sendToServer)
+    .catch((err) => {
+        console.error("Failed to connect to server:", err);
+    });
 
