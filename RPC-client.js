@@ -38,9 +38,12 @@ async function connectToServer(address) {
 async function sendToServer(server) {
     try{
         console.log("Sending requests to the server");
+        while (true){
         const method = await readInput("Input the method you want to do :");
         const params_input = await readInput("Input the params :");
-        const params = params_input.split(" ");
+        const params = method == "floor" || method == "nroot"
+                                  ?params_input.split(" ").map(ele => Number(ele))
+                                  :params_input.split(" ")
 
         const request = {
             "method": method,
@@ -52,16 +55,16 @@ async function sendToServer(server) {
         server.write(JSON.stringify(request));
 
         const timeout = setTimeout(() => {
-            console.log("ending listenig for server responses");
+            console.log("Timeout ending listenig for server responses");
             server.end();
         }, 2000)
 
         server.on("data", (data) => {
             if (data) {
                 const response = JSON.parse(data)
-                console.log("Server response :\n " + response);
+                console.log("Server response :\n " + JSON.stringify(response));
                 clearTimeout(timeout);
-                server.end();
+                // server.end()
             } 
         })
 
@@ -75,7 +78,7 @@ async function sendToServer(server) {
             console.log("Closing connection")
             clearTimeout(timeout)
         })
-        
+        }
     }catch(err){
         console.error("Error while sending to server:", err);
     }
